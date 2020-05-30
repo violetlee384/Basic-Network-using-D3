@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Assignment3_D3_Network Plot</title>
+    <style>
+        /* adjust the pattern of the tooltip reminder box*/
+        #tooltip {
+            display: none;
+            width: 110px;
+            position: absolute;
+            font-size: 13px;
+            font-family:monospace;
+            height: 40px;
+            font-style: italic;
+            background-color: azure;
+            line-height: 20px;
+            padding: 3px;
+            border-radius: 5px;
+        }
+        h1 {
+            text-align: center;
+            color:midnightblue
+        }
+    </style>
+</head>
+<body>
+    <div id="tooltip"></div>
+    <h1>NetWork Plot</h1>
+    <svg width="960" height="540"></svg>
+    <script src="https://d3js.org/d3.v4.min.js"></script>
+    <script>
+        // create an svg to draw in
+        var svg = d3.select("svg");
+        var g = svg.append("g");
+        var width = svg.attr("width");
+        var height = svg.attr("height");
+        
+        // load the graph
+        d3.json("./data.json", function(graph) {
+        console.log(graph);
+        // set the nodes
+        var nodesData = graph.nodes;
+        // links between nodes
+        var linksData = graph.links;
+        // console.log(nodesData)
+            
+        var edges = [];
+        // trnasform the structure of links' data
+        // so that it can be recognised by js.
+        linksData.forEach(function(each){
+            //filter the wanted items
+            var sourceNode = nodesData.filter(function(n){
+                // return the Bool value
+                return n.id === each.node01;
+            })[0];
+
+            var targetNode = nodesData.filter(function(n){
+                return n.id === each.node02;
+            })[0];
+            edges.push({
+                source: sourceNode,
+                target: targetNode,
+                amount: each.amount
+            })
+        });
+        
+        // try to print the transformed data
+        // console.log(edges);
+
+        // add simulation to the graph
+        var forceSimulation = d3.forceSimulation()
+            .force("center",d3.forceCenter(width/2,height/2));
+        // set a auto-color changing function
+        var autoColor = d3.scaleOrdinal()
+			.range(d3.schemeCategory10);
+        // add the links to our graphic
+        var lines = g.append("g")
+            .selectAll()
+            .data(edges)
+            .enter()
+            .append("line")
+            .style("stroke",function(d,i){
+                return autoColor(i)
+            })
+            .style("stroke-width",function(e){
+                return e.amount/90;
+            })
+        // add the nodes to the graphic
+        var nodes = g.append("g")
+            .selectAll()
+            .data(nodesData)
+            .enter()
+            // a circle to represent the node
+            .append("circle")
+            .style("fill",function(d,i){
+				return autoColor(i)
+            })
+            .style("r",function(e){
+                var amount=0;
+                var nodeid = e.id;
+                edges.forEach(function(e,i){
+                    if(nodeid == edges[i].source.id){
+                        amount += edges[i].amount;
+                    }else if(nodeid == edges[i].target.id){
+                        amount += edges[i].amount;
+                    }  
+                });
+                // console.log(amount)
+                return amount/50;
+            })
+            .on("mouseover",function(e){
+                // console.log("mouseover")
+                infobox(e); 
+            })
+            .on("mouseout",function(e){
+                // console.log("mouseout")
+                infobox(null);
+            })
+
+            forceSimulation.on("tick",ticked)
+
+            function ticked(){
+                // add the links to the simulation
+                lines
+                    .attr("x1",function(d){return d.source.x})
+                    .attr("y1",function(d){return d.source.y})
+                    .attr("x2",function(d){return d.target.x})
+                    .attr("y2",function(d){return d.target.y})
+                // add the nodes to the simulation and
+                // tell it what to do on each tick
+                nodes
+                .attr("transform",function(e){
+                    return "translate("+e.x+","+e.y+")";
+                });
+            }
+
+            // set the highlighting
+            // amount should not change with hovering
+            // if a node is linked to the hovered one, it should be highlighted
+            var amount=0;
+            var linkedNodes = [];
+            
+            // information box when hovering on the nodes
+            function showtooltip(e){
+                d3.select("#tooltip")
+                    .html(e)
+                    .attr("style", "transform:translate(" + (window.event.clientX+5) + "px, " + (window.event.offsetY+10) + "px)")
+                    .style("display","block");
+            };
+            function hidetooltip(e){
+                d3.select("#tooltip").style("display","none");
+            };
+            function infobox(hovering){
+                if(hovering){
+                    var nodeId = hovering.id;
+                    linkedNodes.push(nodeId);
+                    edges.forEach(function(e,i){
+                        if(nodeId == edges[i].source.id){
+                            linkedNodes.push(edges[i].target.id);
+                            amount += edges[i].amount;
+                        }else if(nodeId == edges[i].target.id){
+                            linkedNodes.push(edges[i].source.id);
+                            amount += edges[i].amount;
+                        }
+                        
+                    });
+                    g.selectAll("circle").filter(function(d) {
+                        return (linkedNodes.indexOf(d.id) == -1);
+                    }).style("opacity",0.05);
+                    g.selectAll("line").filter(function(d) {
+                        return (((nodeId != d.source.id)) && ((nodeId != d.target.id)));
+                    }).style("opacity",0.05);
+                    showtooltip("name: "+nodeId+" </br>amount: "+amount)
+                }else{
+                    g.selectAll("circle").style("opacity",1);
+                    g.selectAll("line").style("opacity",1); 
+                    hidetooltip();
+                }
+                amount = 0;
+                linkedNodes = [];
+            }
+            
+        })
+    </script>
+    </body>
+</html>
